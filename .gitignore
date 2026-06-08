@@ -1,1 +1,6 @@
 .vscode
+
+# Ignore all Python cache folders anywhere
+__pycache__/
+*.pyc
+*.pyo

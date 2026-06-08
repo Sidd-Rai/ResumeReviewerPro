@@ -1,0 +1,6 @@
+pandas
+streamlit
+google-genai
+pymupdf
+reportlab
+python-docx
