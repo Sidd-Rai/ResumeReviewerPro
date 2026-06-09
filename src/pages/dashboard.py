@@ -7,7 +7,33 @@ from src.config.settings import (
     TEXT_AREA_EDITOR_HEIGHT,
     DASHBOARD_COLUMN_RATIO,
     DASHBOARD_COLUMN_GAP,
+    COLORS,
+    SCORE_THRESHOLDS,
 )
+
+
+def get_score_color(score: int) -> str:
+    """Determine color based on score and thresholds."""
+    if score >= SCORE_THRESHOLDS["excellent"]:
+        return COLORS["excellent"]
+    elif score >= SCORE_THRESHOLDS["good"]:
+        return COLORS["good"]
+    elif score >= SCORE_THRESHOLDS["fair"]:
+        return COLORS["fair"]
+    else:
+        return COLORS["poor"]
+
+
+def get_score_rating(score: int) -> str:
+    """Determine rating label based on score thresholds."""
+    if score >= SCORE_THRESHOLDS["excellent"]:
+        return "Excellent"
+    elif score >= SCORE_THRESHOLDS["good"]:
+        return "Good"
+    elif score >= SCORE_THRESHOLDS["fair"]:
+        return "Fair"
+    else:
+        return "Poor"
 
 
 def render():
@@ -32,10 +58,39 @@ def render():
         result = st.session_state.analysis_result
         
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Overall Match", f"{result.scores.overall}/100")
-        m2.metric("ATS Safety", f"{result.resume_vs_job.ats_safety_score}/100")
-        m3.metric("Impact Quality", f"{result.scores.impact_quality}/100")
-        m4.metric("Keyword Density", f"{result.scores.keyword_density}%")
+        
+        overall_color = get_score_color(result.scores.overall)
+        overall_rating = get_score_rating(result.scores.overall)
+        m1.metric(
+            "Overall Match",
+            f"{result.scores.overall}/100",
+            f"{overall_rating}",
+            delta_color="off"
+        )
+        
+        ats_color = get_score_color(result.resume_vs_job.ats_safety_score)
+        ats_rating = get_score_rating(result.resume_vs_job.ats_safety_score)
+        m2.metric(
+            "ATS Safety",
+            f"{result.resume_vs_job.ats_safety_score}/100",
+            f"{ats_rating}",
+            delta_color="off"
+        )
+        
+        impact_color = get_score_color(result.scores.impact_quality)
+        impact_rating = get_score_rating(result.scores.impact_quality)
+        m3.metric(
+            "Impact Quality",
+            f"{result.scores.impact_quality}/100",
+            f"{impact_rating}",
+            delta_color="off"
+        )
+        
+        m4.metric(
+            "Keyword Density",
+            f"{result.scores.keyword_density}%",
+            delta_color="off"
+        )
         
         st.markdown("##### Performance Breakdown")
         chart_data = pd.DataFrame({
@@ -57,8 +112,11 @@ def render():
             st.markdown(f"**Structure:** {result.score_breakdown.structure}")
         
         with st.expander("⚠️ Critical ATS Warnings & Actions", expanded=True):
-            for action in result.comprehensive_feedback.immediate_actions:
-                st.warning(action, icon="🚨")
+            if result.comprehensive_feedback.immediate_actions:
+                for action in result.comprehensive_feedback.immediate_actions:
+                    st.warning(action, icon="🚨")
+            else:
+                st.success("No critical issues found!", icon="✅")
     
     with editor_col:
         
