@@ -1,5 +1,5 @@
 .vscode
-
+src/Optimised
 # Ignore all Python cache folders anywhere
 __pycache__/
 *.pyc

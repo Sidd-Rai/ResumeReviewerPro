@@ -24,17 +24,10 @@ CRITIC_MODEL = os.getenv("CRITIC_MODEL", "gemini-3.1-flash-lite")
 # 3. The Editor: High-tier creative professional writing and context alignment
 EDITOR_MODEL = os.getenv("EDITOR_MODEL", "gemini-3.1-flash-lite")
 
-# ---------------------------------------------------------
-# ANALYSIS & VALIDATION LIMITS
-# ---------------------------------------------------------
-MAX_RESUME_LENGTH = 2000
-MAX_JOB_DESCRIPTION_LENGTH = 5000
-MIN_RESUME_LENGTH = 500
 
 # ---------------------------------------------------------
 # UI CONFIGURATION & STYLING
 # ---------------------------------------------------------
-SIDEBAR_WIDTH = 300
 MAIN_CONTENT_PADDING = 2
 
 # File Upload Configuration
@@ -71,15 +64,8 @@ SCORE_THRESHOLDS = {
 }
 
 # ---------------------------------------------------------
-# SCORE WEIGHTS (ResumeWorded Benchmarks)
+# SCORE FACTORS (ResumeWorded Benchmarks)
 # ---------------------------------------------------------
-SCORE_WEIGHTS = {
-    "impact": 0.30,
-    "brevity": 0.25,
-    "style": 0.20,
-    "skills": 0.25
-}
-
 SCORE_FACTOR_MULTIPLEERS = {
     "ats_score_multiplier" : 0.40,
     "kw_density_multiplier" : 0.20,
@@ -87,9 +73,3 @@ SCORE_FACTOR_MULTIPLEERS = {
     "clarity_multiplier": 0.10,
     "structure_score_multiplier": 0.10
 }
-
-
-# ---------------------------------------------------------
-# EXPORT CONFIGURATION
-# ---------------------------------------------------------
-EXPORT_FORMATS = ["PDF Report", "Improved Resume (DOCX)", "Comparison PDF"]

@@ -1,7 +1,119 @@
 """
-Each prompt handles a specific dimension of analysis.
+OPTIMIZED: Consolidated prompts for minimal API calls and token usage.
 """
 
+UNIFIED_RESUME_ANALYSIS_PROMPT = """You are an expert resume analyst. Analyze the resume comprehensively in ONE response.
+
+RESUME:
+{resume_text}
+
+CONTEXT: Target role is {job_title}
+
+Respond ONLY as JSON with this exact structure (no markdown, no preamble):
+{{
+  "content_analysis": {{
+    "identified_skills": ["skill1", "skill2"],
+    "experience_strength": "assessment of work experience quality",
+    "achievement_density": "score 1-10 on quantifiable achievements",
+    "keyword_richness": "assessment of relevant terminology used",
+    "section_completeness": {{
+      "summary": true,
+      "experience": true,
+      "skills": true,
+      "education": true,
+      "projects": false
+    }},
+    "missing_sections": ["section1"],
+    "action_verb_usage": "assessment of action verbs in bullets"
+  }},
+  "ats_analysis": {{
+    "formatting_issues": [
+      {{
+        "issue": "description",
+        "severity": "high|medium|low",
+        "fix": "how to fix it"
+      }}
+    ],
+    "keyword_gaps": ["gap1"],
+    "readability_score": 8,
+    "ats_pass_probability": 85,
+    "critical_fixes": ["fix1"],
+    "nice_to_haves": ["improvement1"]
+  }},
+  "impact_assessment": {{
+    "impact_score": 8,
+    "clarity_score": 7,
+    "professionalism_score": 9,
+    "quantification_level": "medium",
+    "achievement_statements": ["achievement1"],
+    "weak_statements": ["weak statement1"],
+    "recommendations": ["rec1"],
+    "overall_impression": "brief assessment"
+  }}
+}}"""
+
+UNIFIED_JOB_MATCHING_PROMPT = """You are an ATS and resume matching expert. Analyze the resume against the job in ONE response.
+
+RESUME:
+{resume_text}
+
+JOB DESCRIPTION:
+{job_description}
+
+Respond ONLY as JSON with this exact nested structure (no markdown, no preamble):
+{{
+  "keyword_extraction": {{
+    "required_skills": ["skill1", "skill2"],
+    "role_keywords": ["keyword1"],
+    "industry_keywords": ["keyword1"],
+    "action_verbs": ["verb1"],
+    "tools_technologies": ["tool1"]
+  }},
+  "resume_vs_job_match": {{
+    "skill_matches": {{
+      "matched": ["skill1"],
+      "missing": ["skill2"]
+    }},
+    "tool_matches": {{
+      "matched": ["tool1"],
+      "missing": ["tool2"]
+    }},
+    "keyword_density": 75,
+    "ats_safety_score": 82,
+    "critical_missing_keywords": ["keyword1"],
+    "strength_areas": ["area1"],
+    "improvement_areas": ["area1"]
+  }},
+  "rewrite_suggestions": {{
+    "summary_rewrite": "improved summary or null",
+    "bullet_improvements": [
+      {{
+        "original": "original bullet",
+        "improved": "improved with keywords and metrics",
+        "section": "Experience|Skills|Education",
+        "reasoning": "why this is better"
+      }}
+    ],
+    "keywords_to_add": ["keyword1"],
+    "structure_improvements": ["suggestion1"],
+    "quick_wins": ["win1"]
+  }},
+  "comprehensive_feedback": {{
+    "executive_summary": "2-3 sentence overview",
+    "match_fit": {{
+      "rating": "Excellent|Good|Fair|Poor",
+      "explanation": "why this rating"
+    }},
+    "top_3_strengths": ["strength1"],
+    "top_3_improvements": ["improvement1"],
+    "immediate_actions": ["action1"],
+    "long_term_improvements": ["improvement1"],
+    "likelihood_of_ats_pass": 85,
+    "likelihood_of_human_review": 90
+  }}
+}}"""
+
+# Keep old prompts as fallback (can deprecate later)
 KEYWORD_EXTRACTION_PROMPT = """
 You are an ATS expert analyzing job descriptions to extract critical keywords.
 
@@ -36,7 +148,7 @@ Evaluate and respond ONLY as JSON with these exact keys:
 {{
   "identified_skills": ["skill1", "skill2"],
   "experience_strength": "assessment of work experience quality",
-  "achievement_density": "score 1-10 on quantifiable achievements",
+  "achievement_density": "score 1-10on quantifiable achievements",
   "keyword_richness": "assessment of relevant terminology used",
   "section_completeness": {{
     "summary": true/false,
@@ -170,31 +282,5 @@ Provide comprehensive feedback as JSON:
   "long_term_improvements": ["improvement1"],
   "likelihood_of_ats_pass": percentage,
   "likelihood_of_human_review": percentage
-}}
-"""
-
-SCORING_CALCULATION_PROMPT = """
-You are calculating resume scores across multiple dimensions.
-
-Resume content: {resume_summary}
-Job fit analysis: {analysis_summary}
-
-Calculate and respond ONLY as JSON:
-{{
-  "scores": {{
-    "ats_match": number 0-100,
-    "keyword_density": number 0-100,
-    "impact_quality": number 0-100,
-    "clarity": number 0-100,
-    "structure": number 0-100,
-    "overall": number 0-100
-  }},
-  "scoring_breakdown": {{
-    "ats_match": "explanation",
-    "keyword_density": "explanation",
-    "impact_quality": "explanation",
-    "clarity": "explanation",
-    "structure": "explanation"
-  }}
 }}
 """

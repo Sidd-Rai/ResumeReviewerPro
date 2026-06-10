@@ -14,7 +14,7 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from src.models.analysis_result import AnalysisResult
+from src.analysis.analysis_result import AnalysisResult
 from src.config.settings import COLORS, SCORE_THRESHOLDS
 
 

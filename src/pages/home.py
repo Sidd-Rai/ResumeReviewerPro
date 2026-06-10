@@ -3,7 +3,7 @@ import re
 
 from src.services.pdf_service import PDFService
 from src.services.gemini_service import MultiAgentResumeService
-from src.services.analysis_engine import AnalysisEngine
+from src.analysis.analysis_engine import AnalysisEngine
 from src.config.settings import (
     IMAGE_WIDTH,
     TEXT_AREA_HEIGHT,
