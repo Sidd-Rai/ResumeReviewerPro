@@ -10,8 +10,8 @@ APP_VERSION = "3.0.0"
 APP_NAME = "Resume Reviewer Pro"
 
 # Gemini API Key
-GEMINI_API_KEY = os.getenv("KEY_SID1")  or st.secrets["KEY_SID1"]
-# GEMINI_API_KEY = os.getenv("KEY_SID2") or st.secrets["KEY_SID2"]
+GEMINI_API_KEY = st.secrets["KEY_SID1"]
+# GEMINI_API_KEY = st.secrets["KEY_SID2"]
 
 # ---------------------------------------------------------
 # MULTI-AGENT MODEL ROUTING
