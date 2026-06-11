@@ -10,26 +10,71 @@ APP_NAME = "Resume Reviewer Pro"
 
 # Gemini API Key
 GEMINI_API_KEY = os.getenv("KEY_SID1")
-GEMINI_API_KEY = os.getenv("KEY_SID2")
+# GEMINI_API_KEY = os.getenv("KEY_SID2")
 
 # ---------------------------------------------------------
 # MULTI-AGENT MODEL ROUTING
 # ---------------------------------------------------------
-# 1. The Parser: Fast, deterministic JSON structural extraction
 PARSER_MODEL = os.getenv("PARSER_MODEL", "gemini-3.1-flash-lite")
-
-# 2. The Critic: Deep analytical reasoning for metric calculations and AIO grading
 CRITIC_MODEL = os.getenv("CRITIC_MODEL", "gemini-3.1-flash-lite")
-
-# 3. The Editor: High-tier creative professional writing and context alignment
 EDITOR_MODEL = os.getenv("EDITOR_MODEL", "gemini-3.1-flash-lite")
 
+# ---------------------------------------------------------
+# ANALYSIS & VALIDATION LIMITS
+# ---------------------------------------------------------
+MAX_RESUME_LENGTH = 2000
+MAX_JOB_DESCRIPTION_LENGTH = 5000
+MIN_RESUME_LENGTH = 500
+
+# Job Description Validation
+MIN_JOB_DESCRIPTION_LENGTH = 50  # Minimum meaningful JD length
+MIN_JOB_DESCRIPTION_WORDS = 10   # Minimum word count
+JOB_DESC_RELEVANCE_THRESHOLD = 0.3  # If relevance below this, cap overall score
+
+# ---------------------------------------------------------
+# SCORING CONFIGURATION
+# ---------------------------------------------------------
+# Score weights - Job match primary, resume quality secondary
+SCORE_WEIGHTS_NEW = {
+    "ats_score": 0.50,              # 50% - ATS/keyword match with JD
+    "keyword_density": 0.30,         # 30% - Keyword overlap
+    "resume_quality": 0.20           # 20% - Resume quality (impact, clarity, structure)
+}
+
+# Resume quality sub-components (within 20%)
+RESUME_QUALITY_WEIGHTS = {
+    "impact": 0.50,
+    "clarity": 0.30,
+    "structure": 0.20
+}
+
+# Score multipliers for invalid JD
+JD_VALIDITY_PENALTY = {
+    "invalid_jd_multiplier": 0.30,      # If JD is gibberish, cap scores at 30% max
+    "low_relevance_multiplier": 0.60    # If JD is low relevance, cap at 60% max
+}
+
+# Score thresholds
+SCORE_THRESHOLDS = {
+    "excellent": 85,
+    "good": 70,
+    "fair": 50,
+    "poor": 0,
+}
+
+# Color scheme for data and metrics visualization
+COLORS = {
+    "excellent": "#27ae60",
+    "good": "#3498db",
+    "fair": "#f39c12",
+    "poor": "#e74c3c",
+    "primary": "#2c3e50",
+    "secondary": "#34495e",
+}
 
 # ---------------------------------------------------------
 # UI CONFIGURATION & STYLING
 # ---------------------------------------------------------
-MAIN_CONTENT_PADDING = 2
-
 # File Upload Configuration
 FILE_UPLOAD_MAX_SIZE_MB = 5
 ALLOWED_FILE_TYPES = ["pdf"]
@@ -45,31 +90,7 @@ DASHBOARD_COLUMN_GAP = "large"
 # UI Text
 HOME_PAGE_IMAGE_CAPTION = "Helo sur! Plix no reject me 🥺🥺🥺"
 
-# Color scheme for data and metrics visualization
-COLORS = {
-    "excellent": "#27ae60",
-    "good": "#3498db",
-    "fair": "#f39c12",
-    "poor": "#e74c3c",
-    "primary": "#2c3e50",
-    "secondary": "#34495e",
-}
-
-# Scoring thresholds
-SCORE_THRESHOLDS = {
-    "excellent": 85,
-    "good": 70,
-    "fair": 50,
-    "poor": 0,
-}
-
 # ---------------------------------------------------------
-# SCORE FACTORS (ResumeWorded Benchmarks)
+# EXPORT CONFIGURATION
 # ---------------------------------------------------------
-SCORE_FACTOR_MULTIPLEERS = {
-    "ats_score_multiplier" : 0.40,
-    "kw_density_multiplier" : 0.20,
-    "impact_multiplier":0.20,
-    "clarity_multiplier": 0.10,
-    "structure_score_multiplier": 0.10
-}
+EXPORT_FORMATS = ["PDF Report", "Improved Resume (DOCX)", "Comparison PDF"]
