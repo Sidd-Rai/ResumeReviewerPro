@@ -3,21 +3,37 @@ Configuration settings.
 """
 
 import os
+import streamlit as st
 
 # Application Settings
 APP_VERSION = "3.0.0"
 APP_NAME = "Resume Reviewer Pro"
 
 # Gemini API Key
-GEMINI_API_KEY = os.getenv("KEY_SID1")
-# GEMINI_API_KEY = os.getenv("KEY_SID2")
+GEMINI_API_KEY = os.getenv("KEY_SID1")  or st.secrets["KEY_SID1"]
+# GEMINI_API_KEY = os.getenv("KEY_SID2") or st.secrets["KEY_SID2"]
 
 # ---------------------------------------------------------
 # MULTI-AGENT MODEL ROUTING
 # ---------------------------------------------------------
-PARSER_MODEL = os.getenv("PARSER_MODEL", "gemini-3.1-flash-lite")
-CRITIC_MODEL = os.getenv("CRITIC_MODEL", "gemini-3.1-flash-lite")
-EDITOR_MODEL = os.getenv("EDITOR_MODEL", "gemini-3.1-flash-lite")
+PARSER_MODEL = (
+    os.getenv("PARSER_MODEL")
+    or st.secrets.get("PARSER_MODEL")
+    or "gemini-3.1-flash-lite"
+)
+
+CRITIC_MODEL = (
+    os.getenv("CRITIC_MODEL")
+    or st.secrets.get("CRITIC_MODEL")
+    or "gemini-3.1-flash-lite"
+)
+
+EDITOR_MODEL = (
+    os.getenv("EDITOR_MODEL")
+    or st.secrets.get("EDITOR_MODEL")
+    or "gemini-3.1-flash-lite"
+)
+
 
 # ---------------------------------------------------------
 # ANALYSIS & VALIDATION LIMITS
