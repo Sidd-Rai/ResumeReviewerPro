@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 from src.config.settings import (
     PARSER_MODEL,
+    GEMINI_API_KEY,
     SCORE_WEIGHTS_NEW,
     RESUME_QUALITY_WEIGHTS,
     JD_VALIDITY_PENALTY,
@@ -38,7 +39,7 @@ class AnalysisEngine:
     """Orchestrates optimized resume analysis (Now has JD validation)."""
     
     def __init__(self):
-        self.client = genai.Client()
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.parser_model = PARSER_MODEL
     
     @staticmethod

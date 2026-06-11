@@ -131,8 +131,7 @@ def render():
                     status1.update(label="✅ Analysis Engine Complete!", state="complete")
                 except Exception as e:
                     status1.update(label="❌ Analysis Engine Failed", state="error")
-                    # st.error(f"Analysis Error: {str(e)[:200]}")
-                    raise
+                    st.error(f"Analysis Error: {str(e)[:200]}")
                     return
             
             # ================================================================
