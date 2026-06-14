@@ -2,11 +2,17 @@
 
 An AI-powered resume analyzer. Just upload your resume, and it'll give you scores and suggestions to make it better.
 
-You can try the live demo right [here](https://siddharths-resume-reviewer-pro.streamlit.app/) or open the below URL in a browser:
+You can try the live demo right [here](https://siddharths-resume-reviewer-pro.streamlit.app/)
 
+
+---
+![CoverImage](res/CoverImage.png)
+
+
+
+Alternatively, you can try the app on this URL
 ```text
 https://siddharths-resume-reviewer-pro.streamlit.app/
-
 ```
 
 *Note: I used the Gemini free tier keys for the live demo, so you might see a "This model is currently unavailable due to heavy demand" message if you try using it during busy times. Also, if you see a "Streamlit app is sleeping" message, just hit the "Wake the app" button. Streamlit puts apps to sleep if nobody has used them for a little while.*
@@ -25,6 +31,8 @@ Basically, the app uses a few AI agents working together to analyze and fix up y
 After the initial check, the app sends your data to three different AI models to parse, edit, and critique the resume. I made this configurable, so you can just pick whichever models you think work best for each specific task.
 
 ---
+![Flowchart](res/ResumeReviewerProFlowchart.jpg)
+---
 
 ## Installation
 
@@ -41,7 +49,6 @@ After the initial check, the app sends your data to three different AI models to
    cd YOUR_FOLDER
    git clone https://github.com/Sidd-Rai/ResumeReviewerPro
    pip install -r requirements.txt
-
    ```
 2. **Create your secrets file**
    ```bash
@@ -56,7 +63,6 @@ After the initial check, the app sends your data to three different AI models to
    PARSER_MODEL = "your_preferred_model"
    CRITIC_MODEL = "your_preferred_model"
    EDITOR_MODEL = "your_preferred_model"
-
    ```
 
    Here is an example of how that should look:
@@ -67,6 +73,7 @@ After the initial check, the app sends your data to three different AI models to
    PARSER_MODEL = "gemini-3.1-flash-lite"
    CRITIC_MODEL = "gemini-3.5-flash"
    EDITOR_MODEL = "gemini-3.1-flash-lite"
+   ```
 
 
 3. **Run it**
@@ -76,7 +83,6 @@ After the initial check, the app sends your data to three different AI models to
 4. **Open in browser**
    ```
    http://localhost:8501
-
    ```
 
 ---
