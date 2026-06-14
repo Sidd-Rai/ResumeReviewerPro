@@ -150,11 +150,10 @@ resume-reviewer-pro/
 
 * When using free tier keys, some models might not be available due to heavy demand, and the app will throw an error message mentioning the same.
 * The API call chain can be further optimized to rely on even fewer API calls.
+* There is room to further optimize prompt structures and data handling to make the app more token-efficient and cost-effective.
 
 ---
 
 ## License & Contributing
 
 This project is open source under the MIT License. Feel free to fork it, play around with the code, or submit a PR if you have ideas for improvements!
-
-That's it. Pretty straightforward.
