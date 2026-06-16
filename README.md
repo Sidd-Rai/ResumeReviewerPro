@@ -3,6 +3,7 @@
 An AI-powered resume analyzer. Just upload your resume, and it'll give you scores and suggestions to make it better.
 
 You can try the live demo right [here](https://siddharths-resume-reviewer-pro.streamlit.app/)
+I have also written a medium article about it, which you can see [here](https://medium.com/@siddharthrai2468/how-i-built-a-multi-agent-resume-critic-and-why-single-prompts-fail-85797da4477d)
 
 
 ---
