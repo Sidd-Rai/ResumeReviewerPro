@@ -1,0 +1,51 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="false" level="WARNING" enabled_by_default="false">
+      <option name="ignoredPackages">
+        <list>
+          <option value="anyio" />
+          <option value="boto3" />
+          <option value="botocore" />
+          <option value="certifi" />
+          <option value="charset-normalizer" />
+          <option value="click" />
+          <option value="fastapi" />
+          <option value="h11" />
+          <option value="httptools" />
+          <option value="hypercorn" />
+          <option value="idna" />
+          <option value="imutils" />
+          <option value="mrz" />
+          <option value="numpy" />
+          <option value="opencv-python-headless" />
+          <option value="packaging" />
+          <option value="pandas" />
+          <option value="pdf2image" />
+          <option value="Pillow" />
+          <option value="pydantic" />
+          <option value="pyparsing" />
+          <option value="pytesseract" />
+          <option value="python-dateutil" />
+          <option value="python-dotenv" />
+          <option value="python-multipart" />
+          <option value="pytz" />
+          <option value="PyYAML" />
+          <option value="requests" />
+          <option value="six" />
+          <option value="sniffio" />
+          <option value="starlette" />
+          <option value="tika" />
+          <option value="typing_extensions" />
+          <option value="urllib3" />
+          <option value="uvloop" />
+          <option value="watchfiles" />
+          <option value="websockets" />
+          <option value="google-cloud-documentai" />
+          <option value="kafka-python" />
+          <option value="google-generativeai" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
