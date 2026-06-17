@@ -4,11 +4,11 @@ import pandas as pd
 from src.services.export_service import ExportService
 from src.config.settings import (
     CHART_HEIGHT,
-    TEXT_AREA_EDITOR_HEIGHT,
     DASHBOARD_COLUMN_RATIO,
     DASHBOARD_COLUMN_GAP,
     COLORS,
     SCORE_THRESHOLDS,
+    SHOW_BEFORE_AFTER_COMPARISON,
 )
 
 
@@ -44,6 +44,7 @@ def render():
         st.session_state.analysis_result = None
         st.session_state.rewritten_text = ""
         st.session_state.finalized_text = ""
+        st.session_state.agent_conversation = []
     
     if not st.session_state.analysis_complete or st.session_state.analysis_result is None:
         st.warning("⚠️ No analysis data available. Please go to 'Home' and run an analysis first.")
@@ -51,7 +52,7 @@ def render():
     
     st.divider()
     
-    dash_col, editor_col = st.columns(DASHBOARD_COLUMN_RATIO, gap=DASHBOARD_COLUMN_GAP)
+    dash_col, side_col = st.columns(DASHBOARD_COLUMN_RATIO, gap=DASHBOARD_COLUMN_GAP)
     
     with dash_col:
         st.subheader("📊 ATS Analytics Dashboard")
@@ -118,42 +119,61 @@ def render():
             else:
                 st.success("No critical issues found!", icon="✅")
     
-    with editor_col:
+    with side_col:
         
-        with st.expander("📝 Editor Workspace", expanded=True):
-            st.session_state.finalized_text = st.text_area(
-                "Review and finalize your newly optimized resume content below:",
-                value=st.session_state.rewritten_text,
-                height=TEXT_AREA_EDITOR_HEIGHT
-            )
+        # AI Conversation Viewer
+        with st.expander("🤖 AI Agent Conversation", expanded=True):
+            st.caption("Review the thinking process and edits made by AI agents")
+            if st.session_state.agent_conversation:
+                for msg in st.session_state.agent_conversation:
+                    st.markdown(msg["message"])
+            else:
+                st.info("No conversation available")
         
+        # Export Center
         with st.expander("📥 Export Center", expanded=False):
-            st.caption("Generate your final files using the updated analysis data.")
+            st.caption("Download your analysis report with improvements.")
             
-            pdf_report_bytes = ExportService.generate_analysis_report_pdf(st.session_state.analysis_result)
-            
-            docx_bytes = ExportService.generate_improved_resume_docx(
-                original_resume_text=st.session_state.raw_text,
-                analysis=st.session_state.analysis_result,
-                improvements_only=False
+            pdf_report_bytes = ExportService.generate_analysis_report_pdf(
+                st.session_state.analysis_result,
+                improved_resume_text=st.session_state.rewritten_text
             )
 
-            ex_col1, ex_col2 = st.columns(2)
-            with ex_col1:
-                st.download_button(
-                    label="📄 Download Detailed PDF Report",
-                    data=pdf_report_bytes.getvalue(),
-                    file_name="Resume_Analysis_Report.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="primary"
-                )
-                
-            with ex_col2:
-                st.download_button(
-                    label="📝 Download Word (.docx)",
-                    data=docx_bytes.getvalue(),
-                    file_name="Optimized_Resume.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
+            st.download_button(
+                label="📄 Download Detailed PDF Report",
+                data=pdf_report_bytes.getvalue(),
+                file_name="Resume_Analysis_Report.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
+    
+    # ========================================================================
+    # Before & After Comparison Section - Feature Flag
+    # ========================================================================
+    if SHOW_BEFORE_AFTER_COMPARISON:
+        st.divider()
+        st.subheader("📋 Before & After Comparison")
+        st.caption("Original resume vs. AI-improved version with agent edits")
+        
+        comp_col1, comp_col2 = st.columns(2)
+        
+        with comp_col1:
+            st.markdown("### 📄 Original Resume")
+            st.text_area(
+                "Original resume content:",
+                value=st.session_state.raw_text,
+                height=400,
+                disabled=True,
+                key="original_resume_view"
+            )
+        
+        with comp_col2:
+            st.markdown("### ✨ Improved Resume")
+            st.text_area(
+                "AI-improved resume with agent edits:",
+                value=st.session_state.rewritten_text,
+                height=400,
+                disabled=True,
+                key="improved_resume_view"
+            )

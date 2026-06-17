@@ -1,5 +1,5 @@
 """
-Export service for generating reports and improved resumes in PDF/DOCX formats.
+Export service for generating analysis reports in PDF format.
 """
 
 from datetime import datetime
@@ -10,9 +10,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib import colors
-from docx import Document
-from docx.shared import Pt, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from src.analysis.analysis_result import AnalysisResult
 from src.config.settings import COLORS, SCORE_THRESHOLDS
@@ -30,18 +27,15 @@ def get_score_color_hex(score: int) -> str:
         return COLORS["poor"]
 
 
-def hex_to_rgb(hex_color: str) -> tuple:
-    """Convert hex color to RGB tuple for docx."""
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-
 class ExportService:
     """Service for exporting analysis results and improved resumes."""
     
     @staticmethod
-    def generate_analysis_report_pdf(analysis: AnalysisResult) -> BytesIO:
-        """Generate comprehensive PDF report from analysis."""
+    def generate_analysis_report_pdf(
+        analysis: AnalysisResult,
+        improved_resume_text: Optional[str] = None
+    ) -> BytesIO:
+        """Generate comprehensive PDF report from analysis with improved resume."""
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
         styles = getSampleStyleSheet()
@@ -65,11 +59,28 @@ class ExportService:
             fontName='Helvetica-Bold'
         )
         
+        subheading_style = ParagraphStyle(
+            'CustomSubheading',
+            parent=styles['Heading3'],
+            fontSize=12,
+            textColor=colors.HexColor(COLORS["secondary"]),
+            spaceAfter=6,
+            spaceBefore=6,
+            fontName='Helvetica-Bold'
+        )
+        
         normal_style = ParagraphStyle(
             'CustomNormal',
             parent=styles['Normal'],
             fontSize=10,
             spaceAfter=6
+        )
+        
+        small_style = ParagraphStyle(
+            'CustomSmall',
+            parent=styles['Normal'],
+            fontSize=9,
+            spaceAfter=4
         )
         
         story = []
@@ -159,128 +170,24 @@ class ExportService:
             story.append(Paragraph(f"{keywords_text}", normal_style))
             story.append(Spacer(1, 0.15*inch))
         
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
-    
-    @staticmethod
-    def generate_improved_resume_docx(
-        original_resume_text: str,
-        analysis: AnalysisResult,
-        improvements_only: bool = True
-    ) -> BytesIO:
-        """
-        Generate improved resume in DOCX format.
-        If improvements_only=True, shows suggestions alongside original.
-        If False, generates a fully rewritten resume.
-        """
-        doc = Document()
-        
-        title = doc.add_heading('Improved Resume', 0)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        metadata = doc.add_paragraph()
-        metadata.add_run('Note: ').bold = True
-        metadata.add_run(
-            'Below are key improvements based on AI analysis. '
-            'Customize these suggestions to match your unique experience.'
-        )
-        
-        doc.add_paragraph()
-        
-        if analysis.rewrite_suggestions.summary_rewrite:
-            doc.add_heading('Improved Summary', level=1)
-            doc.add_paragraph(analysis.rewrite_suggestions.summary_rewrite)
-            doc.add_paragraph()
-        
-        if analysis.rewrite_suggestions.bullet_improvements:
-            doc.add_heading('Improved Bullet Points', level=1)
+        # Add improved resume section
+        if improved_resume_text:
+            story.append(PageBreak())
+            story.append(Paragraph("AI-Improved Resume", heading_style))
+            story.append(Spacer(1, 0.1*inch))
             
-            current_section = None
-            for improvement in analysis.rewrite_suggestions.bullet_improvements:
-                if improvement.section != current_section:
-                    current_section = improvement.section
-                    doc.add_heading(f'{current_section} Section', level=2)
-                
-                p = doc.add_paragraph()
-                p.add_run('Improved: ').bold = True
-                p.add_run(improvement.improved)
-                
-                p = doc.add_paragraph()
-                p.add_run('Why: ').italic = True
-                p.add_run(improvement.reasoning, style='Subtle Emphasis')
-                
-                doc.add_paragraph()
-        
-        if analysis.rewrite_suggestions.keywords_to_add:
-            doc.add_heading('Keywords to Incorporate', level=1)
-            for keyword in analysis.rewrite_suggestions.keywords_to_add:
-                doc.add_paragraph(keyword, style='List Bullet')
-            doc.add_paragraph()
-        
-        if analysis.rewrite_suggestions.quick_wins:
-            doc.add_heading('Quick Wins (Easy Changes)', level=1)
-            for win in analysis.rewrite_suggestions.quick_wins:
-                doc.add_paragraph(win, style='List Bullet')
-            doc.add_paragraph()
-        
-        if analysis.rewrite_suggestions.structure_improvements:
-            doc.add_heading('Structure Improvements', level=1)
-            for improvement in analysis.rewrite_suggestions.structure_improvements:
-                doc.add_paragraph(improvement, style='List Bullet')
-        
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        return buffer
-    
-    @staticmethod
-    def generate_comparison_pdf(
-        original_resume_text: str,
-        analysis: AnalysisResult
-    ) -> BytesIO:
-        """Generate side-by-side comparison of before and after."""
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        
-        story = []
-        
-        story.append(Paragraph("<b>Resume Analysis: Before & After</b>", styles['Title']))
-        story.append(Spacer(1, 0.2*inch))
-        
-        story.append(Paragraph("<b>Key Metrics</b>", styles['Heading2']))
-        
-        overall_color = colors.HexColor(get_score_color_hex(analysis.scores.overall))
-        ats_color = colors.HexColor(get_score_color_hex(analysis.resume_vs_job.ats_safety_score))
-        keyword_color = colors.HexColor(get_score_color_hex(analysis.scores.keyword_density))
-        
-        comparison_data = [
-            ["Metric", "Current", "Target"],
-            ["ATS Score", "Unknown", f"{analysis.scores.ats_match}/100"],
-            ["Keyword Match", "Unknown", f"{analysis.scores.keyword_density}%"],
-            ["Impact Score", "Unknown", f"{analysis.scores.impact_quality}/10"],
-            ["Overall Score", "Unknown", f"{analysis.scores.overall}/100"],
-        ]
-        
-        table = Table(comparison_data, colWidths=[2*inch, 2*inch, 2*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(COLORS["primary"])),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('BACKGROUND', (2, 1), (2, 1), ats_color),
-            ('BACKGROUND', (2, 2), (2, 2), keyword_color),
-            ('BACKGROUND', (2, 4), (2, 4), overall_color),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ]))
-        
-        story.append(table)
-        story.append(Spacer(1, 0.2*inch))
-        
-        story.append(Paragraph("<b>Top Improvements to Make</b>", styles['Heading2']))
-        for i, imp in enumerate(analysis.comprehensive_feedback.top_3_improvements, 1):
-            story.append(Paragraph(f"{i}. {imp}", styles['Normal']))
+            # Split resume into lines for better formatting
+            resume_lines = improved_resume_text.split('\n')
+            for line in resume_lines:
+                if line.strip():
+                    story.append(Paragraph(line, small_style))
+            
+            story.append(Spacer(1, 0.1*inch))
+            story.append(Paragraph(
+                "<i>Note: This is the AI-optimized version incorporating all suggested improvements. "
+                "Review and customize as needed before using in applications.</i>",
+                small_style
+            ))
         
         doc.build(story)
         buffer.seek(0)

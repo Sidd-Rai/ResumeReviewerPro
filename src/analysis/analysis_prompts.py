@@ -1,11 +1,89 @@
 """
-OPTIMIZED: Consolidated prompts with robust JD validation.
-
-Now includes explicit guidance on:
-1. Detecting nonsensical or irrelevant job descriptions
-2. Penalizing poor job-description matches
-3. Validating JD legitimacy before scoring
+Consolidated prompts for all resume analysis specialists.
+Single source of truth for Parser, Critic, and Editor prompts.
 """
+
+# ============================================================================
+# PARSER SPECIALIST PROMPTS - SIMPLIFIED
+# ============================================================================
+
+PARSER_SYSTEM_INSTRUCTION = """You are a JSON parser. Extract data and return ONLY valid JSON. No explanations."""
+
+PARSER_PARSE_RESUME_PROMPT = """Extract resume data into this exact JSON format:
+
+RESUME:
+{resume_text}
+
+Return ONLY JSON:
+{{"summary": "summary text", "skills": ["skill1"], "experience": ["job1"], "education": ["degree1"], "projects": [], "missing_sections": []}}"""
+
+PARSER_PARSE_JOB_DESCRIPTION_PROMPT = """Extract job data into this exact JSON format:
+
+JOB:
+{job_description}
+
+Return ONLY JSON:
+{{"required_skills": ["skill1"], "role_keywords": ["keyword1"], "industry_keywords": ["kw1"], "action_verbs": ["verb1"], "tools_technologies": ["tool1"], "responsibilities": ["resp1"], "qualifications": ["qual1"]}}"""
+
+# ============================================================================
+# CRITIC SPECIALIST PROMPTS
+# ============================================================================
+
+CRITIC_SYSTEM_INSTRUCTION = """You are a Resume Critic. Score and analyze resumes. Return valid JSON only.
+
+Score 4 dimensions 0-100:
+- impact: results and action verbs
+- brevity: conciseness
+- style: clarity and professionalism  
+- skills: relevant skill presence
+
+Include: scores, ats_safety_score, keyword_gaps, critical_issues, weak_statements, strengths, overall_impression"""
+
+CRITIC_AUDIT_ORIGINAL_PROMPT = """Audit this resume and job description.
+
+RESUME:
+{parsed_resume}
+
+JOB:
+{job_description}
+
+Return JSON with scores (impact, brevity, style, skills as 0-100), ats_safety_score (0-100), keyword_gaps (list), critical_issues (list), weak_statements (list), strengths (list), overall_impression (text)."""
+
+CRITIC_AUDIT_EDITED_PROMPT = """Compare original and edited resume. Provide final scores.
+
+ORIGINAL:
+{original_resume}
+
+EDITED:
+{edited_resume}
+
+IMPROVEMENTS:
+{improvements}
+
+Return JSON with scores (impact, brevity, style, skills as 0-100), ats_safety_score (0-100), improvements_summary (text), remaining_issues (list), quality_improvement_percentage (0-100)."""
+
+# ============================================================================
+# EDITOR SPECIALIST PROMPTS
+# ============================================================================
+
+EDITOR_SYSTEM_INSTRUCTION = """You are a Resume Editor. Rewrite weaknesses without inventing facts. Return JSON with improved resume."""
+
+EDITOR_REWRITE_PROMPT = """Rewrite this resume to fix weaknesses.
+
+ORIGINAL:
+{original_resume}
+
+CRITIC FEEDBACK:
+{critic_feedback}
+
+WEAK STATEMENTS:
+{weak_statements}
+
+Return JSON with: summary (text), skills (list), experience (list), education (list), projects (list), bullet_improvements (list of objects with: original, improved, reason)"""
+
+# ============================================================================
+# LEGACY/UNIFIED ANALYSIS PROMPTS (for reference, can be deprecated)
+# ============================================================================
 
 UNIFIED_JOB_MATCHING_PROMPT = """You are an ATS and resume matching expert. Analyze the resume against the job in ONE response.
 

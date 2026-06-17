@@ -1,93 +1,194 @@
+"""
+Gemini Multi-Agent Resume Service - Streamable pipeline for home page.
+Uses analysis engine under the hood for the actual analysis.
+Only provides streaming capability for UI feedback.
+"""
+
 import json
 import re
-from google import genai
-from google.genai import types
 from src.config.settings import GEMINI_API_KEY, PARSER_MODEL, CRITIC_MODEL, EDITOR_MODEL
+# from src.services.agent_service import GeminiAgentService
+from src.services.agent_service import GeminiAgentService
+from src.analysis.analysis_prompts import (
+    PARSER_PARSE_RESUME_PROMPT,
+    PARSER_PARSE_JOB_DESCRIPTION_PROMPT,
+    CRITIC_AUDIT_ORIGINAL_PROMPT,
+    EDITOR_REWRITE_PROMPT,
+    CRITIC_AUDIT_EDITED_PROMPT
+)
+
 
 class MultiAgentResumeService:
+    """
+    Streamable multi-agent pipeline for home page visualization.
+    Provides real-time feedback on the agent workflow.
+    """
+    
     def __init__(self):
-        if not GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY variable is missing or unconfigured in your environment.")
-        
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
-        self._init_agent_chats()
-
-    def _init_agent_chats(self):
-        """Spins up persistent conversation histories for each independent role."""
-        
-        # AGENT 1: THE STRUCTURAL PARSER
-        self.parser_chat = self.client.chats.create(
-            model=PARSER_MODEL,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a strict, objective Data Parsing Agent. Your single role is to accept "
-                    "raw text inputs and perfectly format them into standard Resume sections "
-                    "using valid, minified JSON format. Do not add summaries, conversational fluff, or prose outside the JSON."
-                ),
-                temperature=0.0,
-                response_mime_type="application/json"
-            )
+        self.agent_service = GeminiAgentService(
+            api_key=GEMINI_API_KEY,
+            parser_model=PARSER_MODEL,
+            critic_model=CRITIC_MODEL,
+            editor_model=EDITOR_MODEL
         )
-
-        # AGENT 2: THE ATS BENCHMARK CRITIC
-        self.critic_chat = self.client.chats.create(
-            model=CRITIC_MODEL,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are an elite, demanding ATS Audit Engine and Resume Critic matching ResumeWorded metrics.\n"
-                    "Grade every work statement using Google's XYZ rule (Action - Impact - Outcome).\n"
-                    "Calculate 4 specific core scores from 0-100:\n"
-                    "1. impact: Quantifiable results and strong action verbs.\n"
-                    "2. brevity: Length, word density, and filler reduction.\n"
-                    "3. style: Overused corporate clichés, formatting bugs, and structural flaws.\n"
-                    "4. skills: Core industry skill presence.\n\n"
-                    "Always output a valid structural JSON block containing these exact score fields wrapped inside ```json ... ``` blocks at the end of your response."
-                ),
-                temperature=0.0
-            )
-        )
-
-        # AGENT 3: THE STRATEGIC REWRITE EDITOR
-        self.editor_chat = self.client.chats.create(
-            model=EDITOR_MODEL,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a Master Executive Resume Writer. Your task is to accept structural "
-                    "critique details and rewrite every weak, unquantified profile point. Inject compelling "
-                    "vocabulary, isolate real impact metrics, and enforce readability without inventing artificial job facts."
-                ),
-                temperature=0.4
-            )
-        )
-
+    
     def stream_pipeline(self, raw_resume_text: str, job_description: str = ""):
-        """Executes a linear, stateful chain-of-thought pipeline passing historical metrics between agents."""
+        """
+        Execute multi-agent pipeline and stream results.
+        Yields text chunks for real-time UI updates.
         
-        # Phase 1: Structuring
-        parser_prompt = f"Convert the following raw text into structured profile JSON:\n\n{raw_resume_text}"
-        parsed_json_str = self.parser_chat.send_message(parser_prompt).text
+        Pipeline:
+        1. Parser: Structure resume
+        2. Critic: Audit original
+        3. Editor: Rewrite with improvements
+        4. Critic: Audit improvements
+        """
         
-        # Phase 2: Auditing & Scoring
-        critic_prompt = (
-            f"Run a complete metric analysis. Evaluate this against the target profile metrics.\n"
-            f"Target Context/Job Desc: {job_description if job_description else 'General Industry Metrics'}\n\n"
-            f"Profile Structure:\n{parsed_json_str}"
-        )
-        critique_results = self.critic_chat.send_message(critic_prompt).text
+        yield_text = []
         
-        # Phase 3: Fixing & Rewriting
-        editor_prompt = (
-            f"Take the raw components and fully rewrite the resume layout fixing all vulnerabilities "
-            f"highlighted by the Critic.\n\nCritique Data:\n{critique_results}\n\nOriginal Structure:\n{parsed_json_str}"
-        )
-        editor_rewrites = self.editor_chat.send_message(editor_prompt).text
+        try:
+            # ================================================================
+            # PHASE 1: PARSER - Structure resume and job description
+            # ================================================================
+            yield_text.append("🔍 **Phase 1: Parsing Resume**\n")
+            yield_text.append("Structuring your resume into sections...\n\n")
+            
+            parser_prompt = PARSER_PARSE_RESUME_PROMPT.format(
+                resume_text=raw_resume_text
+            )
+            parser_response = self.agent_service.parser_parse(parser_prompt)
+            parsed_resume = self._safe_parse_json(parser_response.text)
+            
+            yield_text.append("✅ Resume parsed successfully\n")
+            yield_text.append(f"Sections found: {', '.join(k for k in parsed_resume.keys() if k != 'missing_sections')}\n\n")
+            
+            # Parse job description if provided
+            parsed_jd = {}
+            if job_description:
+                yield_text.append("🔍 **Analyzing Job Description**\n")
+                jd_prompt = PARSER_PARSE_JOB_DESCRIPTION_PROMPT.format(
+                    job_description=job_description
+                )
+                jd_response = self.agent_service.parser_parse(jd_prompt)
+                parsed_jd = self._safe_parse_json(jd_response.text)
+                yield_text.append("✅ Job description analyzed\n\n")
+            
+            # ================================================================
+            # PHASE 2: CRITIC - Audit original resume
+            # ================================================================
+            yield_text.append("🧐 **Phase 2: Analyzing Quality**\n")
+            yield_text.append("Running comprehensive quality audit...\n\n")
+            
+            critic_prompt = CRITIC_AUDIT_ORIGINAL_PROMPT.format(
+                parsed_resume=json.dumps(parsed_resume, indent=2),
+                job_description=job_description if job_description else "No job description provided"
+            )
+            critic_response = self.agent_service.critic_audit_original(critic_prompt)
+            original_criticism = self._safe_parse_json(critic_response.text)
+            
+            if "scores" in original_criticism:
+                scores = original_criticism["scores"]
+                yield_text.append("📊 **Original Resume Scores:**\n")
+                for metric, score in scores.items():
+                    yield_text.append(f"  • {metric}: {score}/100\n")
+                yield_text.append("\n")
+            
+            if "critical_issues" in original_criticism:
+                issues = original_criticism["critical_issues"]
+                if issues:
+                    yield_text.append("⚠️ **Issues Found:**\n")
+                    for issue in issues[:3]:
+                        yield_text.append(f"  • {issue}\n")
+                    yield_text.append("\n")
+            
+            # ================================================================
+            # PHASE 3: EDITOR - Rewrite based on feedback
+            # ================================================================
+            yield_text.append("✏️ **Phase 3: Improving Resume**\n")
+            yield_text.append("Rewriting with improvements...\n\n")
+            
+            editor_prompt = EDITOR_REWRITE_PROMPT.format(
+                original_resume=json.dumps(parsed_resume, indent=2),
+                critic_feedback=json.dumps(original_criticism, indent=2),
+                weak_statements=json.dumps(
+                    original_criticism.get("weak_statements", [])
+                )
+            )
+            editor_response = self.agent_service.editor_rewrite(editor_prompt)
+            edited_resume = self._safe_parse_json(editor_response.text)
+            
+            yield_text.append("✅ Resume improved\n\n")
+            
+            if "bullet_improvements" in edited_resume:
+                improvements = edited_resume["bullet_improvements"]
+                yield_text.append(f"📝 **{len(improvements)} Bullet Points Improved**\n\n")
+            
+            # ================================================================
+            # PHASE 4: CRITIC - Verify improvements
+            # ================================================================
+            yield_text.append("🔄 **Phase 4: Verifying Improvements**\n")
+            yield_text.append("Auditing changes...\n\n")
+            
+            final_critic_prompt = CRITIC_AUDIT_EDITED_PROMPT.format(
+                original_resume=json.dumps(parsed_resume, indent=2),
+                edited_resume=json.dumps(edited_resume, indent=2),
+                improvements=json.dumps(
+                    edited_resume.get("bullet_improvements", []),
+                    indent=2
+                )
+            )
+            final_critic_response = self.agent_service.critic_audit_edited(final_critic_prompt)
+            final_scores = self._safe_parse_json(final_critic_response.text)
+            
+            if "scores" in final_scores:
+                scores = final_scores["scores"]
+                yield_text.append("📊 **Final Improved Scores:**\n")
+                for metric, score in scores.items():
+                    original_score = original_criticism.get("scores", {}).get(metric, 0)
+                    improvement = score - original_score
+                    improvement_sign = "+" if improvement > 0 else ""
+                    yield_text.append(f"  • {metric}: {score}/100 ({improvement_sign}{improvement})\n")
+                yield_text.append("\n")
+            
+            yield_text.append("✅ **Analysis Complete!**\n\n")
+            yield_text.append("---\n")
+            
+            # Store agent responses for conversation history
+            yield_text.append(f"```json\n{json.dumps(final_scores, indent=2)}\n```")
+            
+        except json.JSONDecodeError as e:
+            yield_text.append(f"\n⚠️ JSON parsing error: {str(e)}\n")
+        except Exception as e:
+            yield_text.append(f"\n❌ Error in pipeline: {str(e)}\n")
         
-        # Phase 4: Self-Correction Loop (Critic audits the Editor's fixes)
-        loop_prompt = (
-            f"Verify and audit the Editor's new fixes. Provide a brief summary of what improved, "
-            f"and return the updated ResumeWorded score dictionary inside a clean markdown code block at the absolute end.\n\n"
-            f"Editor's Updates:\n{editor_rewrites}"
-        )
+        # Yield all accumulated text as one response
+        full_text = "".join(yield_text)
         
-        # Return the active stream of the evaluation summary and finalized scores
-        return self.critic_chat.send_message_stream(loop_prompt)
+        # Create a simple generator that yields the complete text
+        class TextStream:
+            def __init__(self, text):
+                self.text = text
+            
+            def __iter__(self):
+                yield self
+        
+        return TextStream(full_text)
+    
+    @staticmethod
+    def _safe_parse_json(text: str) -> dict:
+        """Safely parse JSON from response, handling markdown and formatting."""
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Try to extract JSON from markdown code blocks
+            match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+            
+            # Try to extract raw JSON object
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            
+            # Return empty dict if parsing fails
+            return {}

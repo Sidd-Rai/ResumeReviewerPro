@@ -23,6 +23,7 @@ def _init_session_state():
         "finalized_text": "",
         "job_desc_input": "",
         "last_file_name": "",
+        "agent_conversation": [],
     }
     
     for key, value in defaults.items():
@@ -38,6 +39,7 @@ def _clear_analysis():
     st.session_state.analysis_result = None
     st.session_state.finalized_text = ""
     st.session_state.last_file_name = ""
+    st.session_state.agent_conversation = []
 
 
 def render():
@@ -147,10 +149,18 @@ def render():
                     
                     placeholder = st.empty()
                     full_text = ""
+                    conversation_log = []
                     
                     for chunk in response_stream:
                         full_text += chunk.text
                         placeholder.markdown(full_text)
+                    
+                    # Store conversation log
+                    conversation_log.append({
+                        "role": "agent",
+                        "message": full_text
+                    })
+                    st.session_state.agent_conversation = conversation_log
                     
                     # Clean rewritten text
                     clean_rewrite = re.sub(

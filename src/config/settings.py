@@ -87,6 +87,10 @@ COLORS = {
 # ---------------------------------------------------------
 # UI CONFIGURATION & STYLING
 # ---------------------------------------------------------
+
+#UI Feature Flags
+SHOW_BEFORE_AFTER_COMPARISON = False
+
 # File Upload Configuration
 FILE_UPLOAD_MAX_SIZE_MB = 5
 ALLOWED_FILE_TYPES = ["pdf"]
@@ -94,7 +98,6 @@ ALLOWED_FILE_TYPES = ["pdf"]
 # UI Dimensions and Layout
 IMAGE_WIDTH = 400
 TEXT_AREA_HEIGHT = 250
-TEXT_AREA_EDITOR_HEIGHT = 450
 CHART_HEIGHT = 250
 DASHBOARD_COLUMN_RATIO = [1.2, 1]
 DASHBOARD_COLUMN_GAP = "large"
@@ -105,4 +108,4 @@ HOME_PAGE_IMAGE_CAPTION = "Helo sur! Plix no reject me 🥺🥺🥺"
 # ---------------------------------------------------------
 # EXPORT CONFIGURATION
 # ---------------------------------------------------------
-EXPORT_FORMATS = ["PDF Report", "Improved Resume (DOCX)", "Comparison PDF"]
+EXPORT_FORMATS = ["PDF Report"]
