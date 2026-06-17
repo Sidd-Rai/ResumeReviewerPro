@@ -1,6 +1,6 @@
 """
 Analysis Engine - Clean 4-call pipeline for resume analysis.
-Uses modular agent service (service-agnostic).
+Uses modular agent service (service-agnostic) with built-in prompt caching.
 Consolidates all analysis into structured AnalysisResult.
 """
 
@@ -51,11 +51,13 @@ from src.analysis.analysis_result import (
 
 class AnalysisEngine:
     """
-    Modular resume analysis engine using 4-call pipeline:
+    Modular resume analysis engine using 4-call pipeline with prompt caching:
     1. Parser: Resume + Job Description
     2. Critic: Original Resume Analysis
     3. Editor: Resume Improvements
     4. Critic: Edited Resume Verification
+    
+    Prompt caching is handled automatically by GeminiAgentService.
     """
     
     def __init__(self):
@@ -144,12 +146,14 @@ class AnalysisEngine:
         job_title: str = "Target Role"
     ) -> AnalysisResult:
         """
-        Execute 4-call analysis pipeline.
+        Execute 4-call analysis pipeline with prompt caching.
         
         Call 1: Parser - Structure resume and job description
         Call 2: Critic - Analyze original resume
         Call 3: Editor - Generate improvements
         Call 4: Critic - Verify improvements
+        
+        Prompt caching saves tokens on system instructions across calls.
         """
         
         # ====================================================================
