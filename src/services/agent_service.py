@@ -8,10 +8,22 @@ from typing import Dict, Any, Optional
 
 
 class AgentResponse:
-    """Wrapper for agent responses."""
-    def __init__(self, text: str, raw_response: Optional[Any] = None):
+    """Wrapper for agent responses with metadata."""
+    def __init__(self, text: str, raw_response: Optional[Any] = None, cache_config: Optional[Dict] = None):
         self.text = text
         self.raw_response = raw_response
+        self.input_tokens = None
+        self.output_tokens = None
+        self.cache_hit = False
+        self.cache_creation_tokens = None
+        
+        # Extract token metadata from raw response
+        if raw_response and hasattr(raw_response, 'usage_metadata'):
+            usage = raw_response.usage_metadata
+            self.input_tokens = getattr(usage, 'prompt_token_count', None)
+            self.output_tokens = getattr(usage, 'candidates_token_count', None)
+            self.cache_hit = getattr(usage, 'cached_content_input_token_count', 0) > 0
+            self.cache_creation_tokens = getattr(usage, 'cache_creation_input_token_count', None)
 
 
 class BaseAgentService(ABC):
@@ -41,17 +53,24 @@ class BaseAgentService(ABC):
     def critic_audit_edited(self, prompt: str) -> AgentResponse:
         """Critic agent: audit edited resume."""
         pass
+    
+    @abstractmethod
+    def invalidate_cache(self) -> None:
+        """Invalidate cached content."""
+        pass
 
 
 class GeminiAgentService(BaseAgentService):
     """Gemini-based implementation of the agent service with prompt caching."""
     
-    def __init__(self, api_key: str, parser_model: str, critic_model: str, editor_model: str):
+    def __init__(self, api_key: str, parser_model: str, critic_model: str, editor_model: str, cache_duration_seconds: int = 3600):
         self.api_key = api_key
         self.parser_model = parser_model
         self.critic_model = critic_model
         self.editor_model = editor_model
+        self.cache_duration_seconds = cache_duration_seconds
         self.client = None
+        self._cached_content = {}
         self._init_chats()
     
     def initialize(self):
@@ -82,7 +101,8 @@ class GeminiAgentService(BaseAgentService):
                 temperature=0.0,
                 cached_content=self._get_cached_content(
                     system_instruction=PARSER_SYSTEM_INSTRUCTION,
-                    model=self.parser_model
+                    model=self.parser_model,
+                    cache_key="parser"
                 )
             )
         )
@@ -96,7 +116,8 @@ class GeminiAgentService(BaseAgentService):
                 response_mime_type="application/json",
                 cached_content=self._get_cached_content(
                     system_instruction=CRITIC_SYSTEM_INSTRUCTION,
-                    model=self.critic_model
+                    model=self.critic_model,
+                    cache_key="critic"
                 )
             )
         )
@@ -109,12 +130,13 @@ class GeminiAgentService(BaseAgentService):
                 temperature=0.4,
                 cached_content=self._get_cached_content(
                     system_instruction=EDITOR_SYSTEM_INSTRUCTION,
-                    model=self.editor_model
+                    model=self.editor_model,
+                    cache_key="editor"
                 )
             )
         )
     
-    def _get_cached_content(self, system_instruction: str, model: str):
+    def _get_cached_content(self, system_instruction: str, model: str, cache_key: str):
         """
         Create a cached content reference for the system instruction.
         Returns a CachedContent resource that references the system instruction.
@@ -122,18 +144,35 @@ class GeminiAgentService(BaseAgentService):
         from google.genai import types
         
         try:
+            # Check if cache already exists
+            if cache_key in self._cached_content:
+                return self._cached_content[cache_key]
+            
             # Create cached content for the system instruction
             cached_content = self.client.cached_content.create(
                 model=model,
                 display_name=f"system-instruction-{model}",
                 system_instruction=system_instruction,
-                cache_expiration_duration=types.Duration(seconds=3600),  # 1 hour cache
+                cache_expiration_duration=types.Duration(seconds=self.cache_duration_seconds),
             )
+            self._cached_content[cache_key] = cached_content
             return cached_content
         except Exception as e:
             # If caching fails, return None (chats will work without cache)
             print(f"Warning: Prompt caching initialization failed: {e}")
             return None
+    
+    def invalidate_cache(self) -> None:
+        """Invalidate all cached content."""
+        from google.genai import exceptions
+        try:
+            for cache_key, cached_content in self._cached_content.items():
+                if cached_content:
+                    self.client.cached_content.delete(name=cached_content.name)
+            self._cached_content.clear()
+            self._init_chats()
+        except Exception as e:
+            print(f"Warning: Cache invalidation failed: {e}")
     
     def parser_parse(self, prompt: str) -> AgentResponse:
         """Parse resume with parser agent."""

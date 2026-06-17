@@ -1,35 +1,19 @@
 """
-Analysis Engine - Clean 4-call pipeline for resume analysis.
-Uses modular agent service (service-agnostic) with built-in prompt caching.
-Consolidates all analysis into structured AnalysisResult.
+Analysis Engine - Uses unified pipeline for single 4-call execution.
+Returns comprehensive AnalysisResult from shared pipeline data.
 """
 
 import json
-import re
 import streamlit as st
 from typing import Tuple
 
 from src.config.settings import (
     GEMINI_API_KEY,
-    PARSER_MODEL,
-    CRITIC_MODEL,
-    EDITOR_MODEL,
     SCORE_WEIGHTS_NEW,
-    RESUME_QUALITY_WEIGHTS,
     JD_VALIDITY_PENALTY,
-    MIN_JOB_DESCRIPTION_LENGTH,
-    MIN_JOB_DESCRIPTION_WORDS,
 )
 
-from src.services.agent_service import GeminiAgentService
-from src.analysis.analysis_prompts import (
-    PARSER_PARSE_RESUME_PROMPT,
-    PARSER_PARSE_JOB_DESCRIPTION_PROMPT,
-    CRITIC_AUDIT_ORIGINAL_PROMPT,
-    EDITOR_REWRITE_PROMPT,
-    CRITIC_AUDIT_EDITED_PROMPT,
-)
-
+from src.services.unified_pipeline import UnifiedAnalysisPipeline
 from src.analysis.analysis_result import (
     KeywordExtraction,
     SectionCompleteness,
@@ -39,7 +23,6 @@ from src.analysis.analysis_result import (
     BulletImprovement,
     RewriteSuggestions,
     ATSWarnings,
-    FormattingIssue,
     ImpactAssessment,
     ComprehensiveFeedback,
     MatchFit,
@@ -51,93 +34,14 @@ from src.analysis.analysis_result import (
 
 class AnalysisEngine:
     """
-    Modular resume analysis engine using 4-call pipeline with prompt caching:
-    1. Parser: Resume + Job Description
-    2. Critic: Original Resume Analysis
-    3. Editor: Resume Improvements
-    4. Critic: Edited Resume Verification
-    
-    Prompt caching is handled automatically by GeminiAgentService.
+    Analysis engine using unified pipeline.
+    Eliminates duplicate 4-call execution.
     """
     
     def __init__(self):
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is missing or unconfigured.")
-        
-        self.agent_service = GeminiAgentService(
-            api_key=GEMINI_API_KEY,
-            parser_model=PARSER_MODEL,
-            critic_model=CRITIC_MODEL,
-            editor_model=EDITOR_MODEL
-        )
-    
-    @staticmethod
-    def _validate_job_description(job_description: str) -> Tuple[bool, str, float]:
-        """
-        Validates job description legitimacy.
-        Returns: (is_valid, reason, quality_score)
-        """
-        if not job_description or len(job_description.strip()) < MIN_JOB_DESCRIPTION_LENGTH:
-            return False, "Job description too short", 0.0
-        
-        word_count = len(job_description.split())
-        if word_count < MIN_JOB_DESCRIPTION_WORDS:
-            return False, "Insufficient content (minimum 10 words required)", 0.0
-        
-        # Check for obvious nonsense patterns
-        nonsense_patterns = [
-            r"you are rejected",
-            r"no job",
-            r"bruh",
-            r"lol",
-            r"haha",
-            r"test",
-            r"dummy",
-            r"fake",
-            r"xxx+",
-            r"zzz+",
-        ]
-        
-        text_lower = job_description.lower()
-        nonsense_score = sum(1 for pattern in nonsense_patterns if re.search(pattern, text_lower))
-        
-        if nonsense_score >= 2:
-            return False, "Job description appears to be nonsense/test content", 0.1
-        
-        # Check minimum professional content
-        job_keywords = [
-            "experience", "skills", "responsibilities", "required", "qualifications",
-            "role", "position", "team", "project", "develop", "manage", "lead",
-            "deadline", "collaborate", "analysis", "technical", "software", "data"
-        ]
-        
-        keyword_matches = sum(1 for kw in job_keywords if kw in text_lower)
-        
-        if keyword_matches < 2:
-            return False, "No recognizable job content (missing typical job description elements)", 0.2
-        
-        # Quality score based on length and content
-        quality_score = min(100.0, 20 + (word_count / 10) + (keyword_matches * 10))
-        
-        return True, "Valid job description", quality_score
-    
-    @staticmethod
-    def _parse_json_response(text: str) -> dict:
-        """Safely parse JSON from response, handling markdown and trailing text."""
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            # Try to extract JSON from markdown code blocks
-            match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
-            if match:
-                return json.loads(match.group(1))
-            
-            # Try to extract raw JSON object
-            match = re.search(r'\{.*\}', text, re.DOTALL)
-            if match:
-                return json.loads(match.group(0))
-            
-            raise ValueError(f"Could not parse JSON from response: {text[:200]}")
+        self.pipeline = UnifiedAnalysisPipeline()
     
     def analyze_resume(
         self,
@@ -146,115 +50,37 @@ class AnalysisEngine:
         job_title: str = "Target Role"
     ) -> AnalysisResult:
         """
-        Execute 4-call analysis pipeline with prompt caching.
-        
-        Call 1: Parser - Structure resume and job description
-        Call 2: Critic - Analyze original resume
-        Call 3: Editor - Generate improvements
-        Call 4: Critic - Verify improvements
-        
-        Prompt caching saves tokens on system instructions across calls.
+        Execute analysis pipeline once via unified pipeline.
+        Builds AnalysisResult from pipeline output.
         """
         
-        # ====================================================================
-        # VALIDATION
-        # ====================================================================
-        jd_is_valid = True
-        jd_quality_score = 100.0
-        jd_validation_reason = "No job description provided"
-        
-        if job_description:
-            jd_is_valid, jd_validation_reason, jd_quality_score = self._validate_job_description(job_description)
-            if not jd_is_valid:
-                st.warning(f"⚠️ Job Description Issue: {jd_validation_reason}")
-        
-        # ====================================================================
-        # CALL 1: PARSER - Extract and structure resume + job description
-        # ====================================================================
-        status = st.status("📋 Phase 1/4: Parsing resume structure...", expanded=True)
+        # Execute unified pipeline
+        status = st.status("📋 Analyzing resume with unified pipeline...", expanded=True)
         
         try:
-            # Parse resume
-            parser_prompt = PARSER_PARSE_RESUME_PROMPT.format(resume_text=resume_text)
-            parser_response = self.agent_service.parser_parse(parser_prompt)
-            parsed_resume = self._parse_json_response(parser_response.text)
-            
-            # Parse job description if provided
-            parsed_jd = {}
-            if job_description:
-                jd_prompt = PARSER_PARSE_JOB_DESCRIPTION_PROMPT.format(
-                    job_description=job_description
-                )
-                jd_response = self.agent_service.parser_parse(jd_prompt)
-                parsed_jd = self._parse_json_response(jd_response.text)
-            
-            status.update(label="✅ Phase 1: Parsing complete", state="complete")
-        except Exception as e:
-            status.update(label="❌ Phase 1: Parsing failed", state="error")
-            raise ValueError(f"Parser error: {str(e)}")
-        
-        # ====================================================================
-        # CALL 2: CRITIC - Audit original resume
-        # ====================================================================
-        status = st.status("🧐 Phase 2/4: Analyzing resume quality...", expanded=True)
-        
-        try:
-            critic_prompt = CRITIC_AUDIT_ORIGINAL_PROMPT.format(
-                parsed_resume=json.dumps(parsed_resume, indent=2),
-                job_description=job_description if job_description else "No job description provided"
+            pipeline_result = self.pipeline.execute(
+                resume_text=resume_text,
+                job_description=job_description,
+                job_title=job_title
             )
-            critic_response = self.agent_service.critic_audit_original(critic_prompt)
-            original_analysis = self._parse_json_response(critic_response.text)
             
-            status.update(label="✅ Phase 2: Analysis complete", state="complete")
-        except Exception as e:
-            status.update(label="❌ Phase 2: Analysis failed", state="error")
-            raise ValueError(f"Critic analysis error: {str(e)}")
-        
-        # ====================================================================
-        # CALL 3: EDITOR - Generate improvements
-        # ====================================================================
-        status = st.status("✏️ Phase 3/4: Generating improvements...", expanded=True)
-        
-        try:
-            editor_prompt = EDITOR_REWRITE_PROMPT.format(
-                original_resume=json.dumps(parsed_resume, indent=2),
-                critic_feedback=json.dumps(original_analysis, indent=2),
-                weak_statements=json.dumps(original_analysis.get("weak_statements", []))
-            )
-            editor_response = self.agent_service.editor_rewrite(editor_prompt)
-            edited_resume = self._parse_json_response(editor_response.text)
+            parsed_resume = pipeline_result["parsed_resume"]
+            parsed_jd = pipeline_result["parsed_jd"]
+            original_analysis = pipeline_result["original_analysis"]
+            edited_resume = pipeline_result["edited_resume"]
+            final_analysis = pipeline_result["final_analysis"]
+            jd_validation = pipeline_result["jd_validation"]
             
-            status.update(label="✅ Phase 3: Improvements generated", state="complete")
+            status.update(label="✅ Pipeline complete, building report...", state="running")
         except Exception as e:
-            status.update(label="❌ Phase 3: Generation failed", state="error")
-            raise ValueError(f"Editor error: {str(e)}")
+            status.update(label="❌ Analysis failed", state="error")
+            raise ValueError(f"Pipeline execution error: {str(e)}")
         
-        # ====================================================================
-        # CALL 4: CRITIC - Verify improvements
-        # ====================================================================
-        status = st.status("🔄 Phase 4/4: Verifying improvements...", expanded=True)
-        
+        # Build AnalysisResult
         try:
-            final_prompt = CRITIC_AUDIT_EDITED_PROMPT.format(
-                original_resume=json.dumps(parsed_resume, indent=2),
-                edited_resume=json.dumps(edited_resume, indent=2),
-                improvements=json.dumps(edited_resume.get("bullet_improvements", []), indent=2)
-            )
-            final_response = self.agent_service.critic_audit_edited(final_prompt)
-            final_analysis = self._parse_json_response(final_response.text)
+            jd_is_valid = jd_validation["is_valid"]
+            jd_quality_score = jd_validation["quality_score"]
             
-            status.update(label="✅ Phase 4: Verification complete", state="complete")
-        except Exception as e:
-            status.update(label="❌ Phase 4: Verification failed", state="error")
-            raise ValueError(f"Final verification error: {str(e)}")
-        
-        # ====================================================================
-        # BUILD ANALYSIS RESULT
-        # ====================================================================
-        status = st.status("🔨 Building final report...", expanded=True)
-        
-        try:
             # Section completeness
             section_completeness = SectionCompleteness(
                 summary=bool(parsed_resume.get("summary")),
@@ -333,7 +159,6 @@ class AnalysisEngine:
             
             # Calculate weighted scores
             original_scores = original_analysis.get("scores", {})
-            final_scores = final_analysis.get("scores", {})
             
             ats_match = max(0, min(100, original_scores.get("impact", 50)))
             keyword_density = max(0, min(100, original_scores.get("skills", 50)))
@@ -407,7 +232,8 @@ class AnalysisEngine:
                 impact_assessment=impact_assessment,
                 comprehensive_feedback=comprehensive_feedback,
                 scores=scores,
-                score_breakdown=score_breakdown
+                score_breakdown=score_breakdown,
+                pipeline_result=pipeline_result  # Store for MultiAgentResumeService
             )
             
             status.update(label="✅ Analysis complete!", state="complete")

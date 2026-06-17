@@ -1,6 +1,6 @@
 import streamlit as st
 import re
-
+import hashlib
 from src.services.pdf_service import PDFService
 from src.services.gemini_service import MultiAgentResumeService
 from src.analysis.analysis_engine import AnalysisEngine
@@ -9,7 +9,9 @@ from src.config.settings import (
     TEXT_AREA_HEIGHT,
     HOME_PAGE_IMAGE_CAPTION,
     ALLOWED_FILE_TYPES,
-    FILE_UPLOAD_MAX_SIZE_MB
+    FILE_UPLOAD_MAX_SIZE_MB,
+    MIN_JOB_DESCRIPTION_LENGTH,
+    MIN_JOB_DESCRIPTION_WORDS,
 )
 
 
@@ -24,6 +26,7 @@ def _init_session_state():
         "job_desc_input": "",
         "last_file_name": "",
         "agent_conversation": [],
+        "last_request_hash": "",  # For deduplication
     }
     
     for key, value in defaults.items():
@@ -40,6 +43,33 @@ def _clear_analysis():
     st.session_state.finalized_text = ""
     st.session_state.last_file_name = ""
     st.session_state.agent_conversation = []
+    st.session_state.last_request_hash = ""
+
+
+def _validate_job_description(job_desc: str) -> tuple[bool, str]:
+    """Validate job description upfront."""
+    if not job_desc:
+        return True, ""  # Optional
+    
+    if len(job_desc.strip()) < MIN_JOB_DESCRIPTION_LENGTH:
+        return False, f"Job description too short (minimum {MIN_JOB_DESCRIPTION_LENGTH} characters)"
+    
+    word_count = len(job_desc.split())
+    if word_count < MIN_JOB_DESCRIPTION_WORDS:
+        return False, f"Job description too short (minimum {MIN_JOB_DESCRIPTION_WORDS} words)"
+    
+    return True, ""
+
+
+def _get_request_hash(resume_text: str, job_desc: str) -> str:
+    """Create hash of resume + JD for deduplication."""
+    combined = f"{resume_text}|||{job_desc}"
+    return hashlib.md5(combined.encode()).hexdigest()
+
+
+def _should_skip_analysis(current_hash: str) -> bool:
+    """Check if this exact request was just analyzed (deduplication)."""
+    return current_hash == st.session_state.last_request_hash and st.session_state.analysis_complete
 
 
 def render():
@@ -117,34 +147,56 @@ def render():
                 st.error("❌ Resume extraction failed or too short. Please try another PDF.")
                 return
             
+            # Validate job description upfront
+            jd_valid, jd_error = _validate_job_description(job_desc)
+            if not jd_valid:
+                st.error(f"❌ {jd_error}")
+                return
+            
+            # Check for duplicate request (deduplication)
+            request_hash = _get_request_hash(resume_text, job_desc)
+            if _should_skip_analysis(request_hash):
+                st.info("✅ This exact resume+JD combination was just analyzed. Showing previous results.")
+                st.session_state.analysis_complete = True
+                return
+            
             st.session_state.raw_text = resume_text
             st.session_state.last_file_name = uploaded_file.name
+            st.session_state.last_request_hash = request_hash
             
             # ================================================================
-            # ENGINE 1: Deep ATS & Content Analysis
+            # UNIFIED ENGINE: Single 4-call pipeline
             # ================================================================
-            with st.status("Engine 1: Running Deep ATS & Content Analysis...", expanded=True) as status1:
+            with st.status("🚀 Running unified analysis pipeline...", expanded=True) as status:
                 try:
                     analyzer = AnalysisEngine()
-                    st.session_state.analysis_result = analyzer.analyze_resume(
+                    analysis_result = analyzer.analyze_resume(
                         resume_text=st.session_state.raw_text,
                         job_description=job_desc
                     )
-                    status1.update(label="✅ Analysis Engine Complete!", state="complete")
+                    st.session_state.analysis_result = analysis_result
+                    
+                    # Extract pipeline result for streaming service
+                    pipeline_result = analysis_result.pipeline_result
+                    
+                    status.update(label="✅ Analysis complete, formatting results...", state="running")
+                    
                 except Exception as e:
-                    status1.update(label="❌ Analysis Engine Failed", state="error")
+                    status.update(label="❌ Analysis failed", state="error")
                     st.error(f"Analysis Error: {str(e)[:200]}")
+                    st.session_state.analysis_complete = False
                     return
             
             # ================================================================
-            # ENGINE 2: Multi-Agent Resume Editor
+            # STREAM FORMATTER: Format results for display
             # ================================================================
-            with st.status("Engine 2: Initializing Multi-Agent Editors...", expanded=True) as status2:
+            with st.status("📊 Formatting results...", expanded=True) as status_format:
                 try:
-                    agent_system = MultiAgentResumeService()
-                    response_stream = agent_system.stream_pipeline(
+                    formatter = MultiAgentResumeService(pipeline_result=pipeline_result)
+                    response_stream = formatter.stream_pipeline(
                         st.session_state.raw_text,
-                        job_desc
+                        job_desc,
+                        skip_pipeline=True
                     )
                     
                     placeholder = st.empty()
@@ -172,11 +224,12 @@ def render():
                     st.session_state.rewritten_text = clean_rewrite.strip()
                     st.session_state.finalized_text = st.session_state.rewritten_text
                     
-                    status2.update(label="✅ Multi-Agent Rewriting Complete!", state="complete")
+                    status_format.update(label="✅ Results ready!", state="complete")
                     
                 except Exception as e:
-                    status2.update(label="❌ Multi-Agent Processing Failed", state="error")
-                    st.error(f"Editor Error: {str(e)[:200]}")
+                    status_format.update(label="❌ Formatting failed", state="error")
+                    st.error(f"Formatter Error: {str(e)[:200]}")
+                    st.session_state.analysis_complete = False
                     return
             
             # Analysis successful

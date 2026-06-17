@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class KeywordExtraction:
@@ -148,6 +148,7 @@ class AnalysisResult:
     comprehensive_feedback: ComprehensiveFeedback
     scores: Scores
     score_breakdown: ScoreBreakdown
+    pipeline_result: Dict[str, Any] = field(default_factory=dict)
     
     def get_overall_score(self) -> int:
         """Calculate weighted overall score."""

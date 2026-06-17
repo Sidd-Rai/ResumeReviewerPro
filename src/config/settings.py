@@ -30,6 +30,10 @@ EDITOR_MODEL = (
     or "gemini-3.1-flash-lite"
 )
 
+# ---------------------------------------------------------
+# PROMPT CACHING CONFIGURATION
+# ---------------------------------------------------------
+CACHE_DURATION_SECONDS = st.secrets.get("CACHE_DURATION_SECONDS", 3600)  # 1 hour default
 
 # ---------------------------------------------------------
 # ANALYSIS & VALIDATION LIMITS
