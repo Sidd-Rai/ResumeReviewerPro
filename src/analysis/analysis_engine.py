@@ -335,11 +335,11 @@ class AnalysisEngine:
             original_scores = original_analysis.get("scores", {})
             final_scores = final_analysis.get("scores", {})
             
-            ats_match = max(0, min(100, final_scores.get("impact", 50)))
-            keyword_density = max(0, min(100, final_scores.get("skills", 50)))
-            impact_quality = max(0, min(100, final_scores.get("impact", 50)))
-            clarity = max(0, min(100, final_scores.get("style", 50)))
-            structure = max(0, min(100, final_scores.get("brevity", 50)))
+            ats_match = max(0, min(100, original_scores.get("impact", 50)))
+            keyword_density = max(0, min(100, original_scores.get("skills", 50)))
+            impact_quality = max(0, min(100, original_scores.get("impact", 50)))
+            clarity = max(0, min(100, original_scores.get("style", 50)))
+            structure = max(0, min(100, original_scores.get("brevity", 50)))
             
             overall = int(
                 ats_match * SCORE_WEIGHTS_NEW["ats_score"] +

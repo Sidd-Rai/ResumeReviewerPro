@@ -1,13 +1,22 @@
 """
 Consolidated prompts for all resume analysis specialists.
 Single source of truth for Parser, Critic, and Editor prompts.
+Includes dynamic current date injection for temporal context.
 """
+
+from datetime import datetime
+
+# Get current date for dynamic injection
+CURRENT_DATE = datetime.now().strftime("%B %d, %Y")  # e.g., "June 17, 2026"
 
 # ============================================================================
 # PARSER SPECIALIST PROMPTS - SIMPLIFIED
 # ============================================================================
 
-PARSER_SYSTEM_INSTRUCTION = """You are a JSON parser. Extract data and return ONLY valid JSON. No explanations."""
+PARSER_SYSTEM_INSTRUCTION = f"""You are a JSON parser. Extract data and return ONLY valid JSON. No explanations.
+
+Current date: {CURRENT_DATE}
+Today is your reference point for any temporal context in resumes or job descriptions."""
 
 PARSER_PARSE_RESUME_PROMPT = """Extract resume data into this exact JSON format:
 
@@ -29,7 +38,10 @@ Return ONLY JSON:
 # CRITIC SPECIALIST PROMPTS
 # ============================================================================
 
-CRITIC_SYSTEM_INSTRUCTION = """You are a Resume Critic. Score and analyze resumes. Return valid JSON only.
+CRITIC_SYSTEM_INSTRUCTION = f"""You are a Resume Critic. Score and analyze resumes. Return valid JSON only.
+
+Current date: {CURRENT_DATE}
+Use this date as reference for evaluating resume content, work history, and relevance.
 
 Score 4 dimensions 0-100:
 - impact: results and action verbs
@@ -66,7 +78,10 @@ Return JSON with scores (impact, brevity, style, skills as 0-100), ats_safety_sc
 # EDITOR SPECIALIST PROMPTS
 # ============================================================================
 
-EDITOR_SYSTEM_INSTRUCTION = """You are a Resume Editor. Rewrite weaknesses without inventing facts. Return JSON with improved resume."""
+EDITOR_SYSTEM_INSTRUCTION = f"""You are a Resume Editor. Rewrite weaknesses without inventing facts. Return JSON with improved resume.
+
+Current date: {CURRENT_DATE}
+Use this date as reference when evaluating career progression and experience recency."""
 
 EDITOR_REWRITE_PROMPT = """Rewrite this resume to fix weaknesses.
 
@@ -85,7 +100,10 @@ Return JSON with: summary (text), skills (list), experience (list), education (l
 # LEGACY/UNIFIED ANALYSIS PROMPTS (for reference, can be deprecated)
 # ============================================================================
 
-UNIFIED_JOB_MATCHING_PROMPT = """You are an ATS and resume matching expert. Analyze the resume against the job in ONE response.
+UNIFIED_JOB_MATCHING_PROMPT = f"""You are an ATS and resume matching expert. Analyze the resume against the job in ONE response.
+
+Current date: {CURRENT_DATE}
+Use this date as reference for evaluating resume recency, experience gaps, and temporal relevance.
 
 IMPORTANT VALIDATION RULES:
 - First, assess if the job description is LEGITIMATE and MEANINGFUL
@@ -98,10 +116,10 @@ IMPORTANT VALIDATION RULES:
 - If JD is clearly invalid/joke/nonsense: Set ats_safety_score and keyword_density to 0-15 ONLY
 
 RESUME:
-{resume_text}
+{{resume_text}}
 
 JOB DESCRIPTION:
-{job_description}
+{{job_description}}
 
 SCORING RULES:
 - ats_safety_score: 0-100. Base on keyword alignment. If JD is invalid, max 15.
@@ -110,102 +128,105 @@ SCORING RULES:
 - Do NOT give high scores to poor matches just to be polite
 
 Respond ONLY as JSON with this nested structure (no markdown, no preamble):
-{{
-  "jd_validation": {{
+{{{{
+  "jd_validation": {{{{
     "is_valid_jd": true,
     "validity_reason": "brief explanation of legitimacy assessment",
     "jd_quality_score": 85
-  }},
-  "keyword_extraction": {{
+  }}}},
+  "keyword_extraction": {{{{
     "required_skills": ["skill1", "skill2"],
     "role_keywords": ["keyword1"],
     "industry_keywords": ["keyword1"],
     "action_verbs": ["verb1"],
     "tools_technologies": ["tool1"]
-  }},
-  "resume_vs_job_match": {{
-    "skill_matches": {{
+  }}}},
+  "resume_vs_job_match": {{{{
+    "skill_matches": {{{{
       "matched": ["skill1"],
       "missing": ["skill2"]
-    }},
-    "tool_matches": {{
+    }}}},
+    "tool_matches": {{{{
       "matched": ["tool1"],
       "missing": ["tool2"]
-    }},
+    }}}},
     "keyword_density": 75,
     "ats_safety_score": 82,
     "critical_missing_keywords": ["keyword1"],
     "strength_areas": ["area1"],
     "improvement_areas": ["area1"]
-  }},
-  "rewrite_suggestions": {{
+  }}}},
+  "rewrite_suggestions": {{{{
     "summary_rewrite": "improved summary or null",
     "bullet_improvements": [
-      {{
+      {{{{
         "original": "original bullet",
         "improved": "improved with keywords and metrics",
         "section": "Experience|Skills|Education",
         "reasoning": "why this is better"
-      }}
+      }}}}
     ],
     "keywords_to_add": ["keyword1"],
     "structure_improvements": ["suggestion1"],
     "quick_wins": ["win1"]
-  }},
-  "comprehensive_feedback": {{
+  }}}},
+  "comprehensive_feedback": {{{{
     "executive_summary": "2-3 sentence overview",
-    "match_fit": {{
+    "match_fit": {{{{
       "rating": "Excellent|Good|Fair|Poor",
       "explanation": "why this rating"
-    }},
+    }}}},
     "top_3_strengths": ["strength1"],
     "top_3_improvements": ["improvement1"],
     "immediate_actions": ["action1"],
     "long_term_improvements": ["improvement1"],
     "likelihood_of_ats_pass": 85,
     "likelihood_of_human_review": 90
-  }}
-}}"""
+  }}}}
+}}}}"""
 
-UNIFIED_RESUME_ANALYSIS_PROMPT = """You are an expert resume analyst. Analyze the resume comprehensively in ONE response.
+UNIFIED_RESUME_ANALYSIS_PROMPT = f"""You are an expert resume analyst. Analyze the resume comprehensively in ONE response.
+
+Current date: {CURRENT_DATE}
+Use this date as reference for evaluating work history recency, career progression, and experience gaps.
 
 RESUME:
-{resume_text}
+{{resume_text}}
 
-CONTEXT: Target role is {job_title}
+CONTEXT: Target role is {{job_title}}
 
 Respond ONLY as JSON with this exact structure (no markdown, no preamble):
-{{
-  "content_analysis": {{
+{{{{
+  "content_analysis": {{{{
     "identified_skills": ["skill1", "skill2"],
     "experience_strength": "assessment of work experience quality",
     "achievement_density": "score 1-10 on quantifiable achievements",
     "keyword_richness": "assessment of relevant terminology used",
-    "section_completeness": {{
+    "section_completeness": {{{{
       "summary": true/false,
       "experience": true/false,
       "skills": true/false,
       "education": true/false,
       "projects": false/false
-    }},
+    }}}},
     "missing_sections": ["section1"],
     "action_verb_usage": "assessment of action verbs in bullets"
-  }},
-  "ats_analysis": {{
+  }}}},
+  "ats_analysis": {{{{
     "formatting_issues": [
-      {{
+      {{{{
         "issue": "description",
         "severity": "high|medium|low",
         "fix": "how to fix it"
-      }}
+      }}}}
     ],
     "keyword_gaps": ["gap1"],
     "readability_score": 8,
     "ats_pass_probability": 85,
     "critical_fixes": ["fix1"],
     "nice_to_haves": ["improvement1"]
-  }},
-  "impact_assessment": {{
+  }}}},
+  "impact_assessment": {{{{
     "impact_score": 8,
     "clarity_score": 7,
     "professionalism_score": 9,
@@ -214,5 +235,5 @@ Respond ONLY as JSON with this exact structure (no markdown, no preamble):
     "weak_statements": ["weak statement1"],
     "recommendations": ["rec1"],
     "overall_impression": "brief assessment"
-  }}
-}}"""
+  }}}}
+}}}}"""
