@@ -1,23 +1,18 @@
 import json
 import re
 import streamlit as st
-from google import genai
 from google.genai import types
 from src.config.settings import (
     PARSER_MODEL,
     CRITIC_MODEL,
     EDITOR_MODEL,
-    GEMINI_API_KEY,
     SCORE_WEIGHTS_NEW,
     RESUME_QUALITY_WEIGHTS,
     JD_VALIDITY_PENALTY,
     MIN_JOB_DESCRIPTION_LENGTH,
     MIN_JOB_DESCRIPTION_WORDS
 )
-from src.analysis.analysis_prompts import (
-    UNIFIED_RESUME_ANALYSIS_PROMPT,
-    UNIFIED_JOB_MATCHING_PROMPT,
-)
+from src.services.gemini_runtime import get_gemini_client, get_prompt_cache_name
 from src.analysis.analysis_result import (
     KeywordExtraction,
     SectionCompleteness,
@@ -48,7 +43,7 @@ class AnalysisEngine:
     """
     
     def __init__(self):
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.client = get_gemini_client()
         self.parser_model = PARSER_MODEL
         self.critic_model = CRITIC_MODEL
         self.editor_model = EDITOR_MODEL
@@ -56,27 +51,84 @@ class AnalysisEngine:
     
     def _init_specialist_chats(self):
         """Initialize persistent conversation histories for each specialist."""
-        
+
+        parser_system_instruction = (
+            "You are a Structural Resume Parser. Your role is to:\n"
+            "1. Accept raw resume text\n"
+            "2. Extract and structure into JSON: skills, experience, education, projects, summary\n"
+            "3. Identify missing sections and incomplete information\n"
+            "4. Return minified, valid JSON only (no prose, no markdown)\n\n"
+            "Output format:\n"
+            "{\n"
+            "  \"summary\": \"...\",\n"
+            "  \"skills\": [...],\n"
+            "  \"experience\": [...],\n"
+            "  \"education\": [...],\n"
+            "  \"projects\": [...],\n"
+            "  \"missing_sections\": [...]\n"
+            "}"
+        )
+        critic_system_instruction = (
+            "You are an elite Resume Critic and ATS Auditor. Your role is to:\n"
+            "1. Accept parsed resume structure and job description (if provided)\n"
+            "2. Score resume on 4 dimensions (0-100 each):\n"
+            "   - impact: Quantifiable results and action verbs\n"
+            "   - brevity: Word density, filler reduction\n"
+            "   - style: Clarity, formatting, no clichés\n"
+            "   - skills: Industry-relevant skill presence\n"
+            "3. If job provided: Extract keywords, identify gaps, assess ATS match\n"
+            "4. Flag critical issues and weak statements\n"
+            "5. Return valid JSON with scores and detailed feedback\n\n"
+            "Output format:\n"
+            "{\n"
+            "  \"scores\": {\"impact\": 0-100, \"brevity\": 0-100, \"style\": 0-100, \"skills\": 0-100},\n"
+            "  \"job_keywords\": [...],\n"
+            "  \"keyword_gaps\": [...],\n"
+            "  \"ats_score\": 0-100,\n"
+            "  \"critical_issues\": [...],\n"
+            "  \"weak_statements\": [...],\n"
+            "  \"strengths\": [...]\n"
+            "}"
+        )
+        editor_system_instruction = (
+            "You are a Master Executive Resume Editor. Your role is to:\n"
+            "1. Accept parsed resume, critic's feedback, and weak statements\n"
+            "2. Rewrite weak bullets to add impact without inventing false facts\n"
+            "3. Inject quantifiable metrics where possible\n"
+            "4. Enforce consistency and clarity\n"
+            "5. Fix formatting and ATS issues flagged by critic\n"
+            "6. Return both improved resume JSON and bullet-by-bullet improvements\n\n"
+            "Output format:\n"
+            "{\n"
+            "  \"improved_resume\": {...parsed resume with rewrites...},\n"
+            "  \"bullet_improvements\": [\n"
+            "    {\"original\": \"...\", \"improved\": \"...\", \"reasoning\": \"...\"}\n"
+            "  ],\n"
+            "  \"changes_summary\": \"...\"\n"
+            "}"
+        )
+
+        parser_cache = get_prompt_cache_name(
+            model=self.parser_model,
+            display_name="analysis-parser-system",
+            system_instruction=parser_system_instruction,
+        )
+        critic_cache = get_prompt_cache_name(
+            model=self.critic_model,
+            display_name="analysis-critic-system",
+            system_instruction=critic_system_instruction,
+        )
+        editor_cache = get_prompt_cache_name(
+            model=self.editor_model,
+            display_name="analysis-editor-system",
+            system_instruction=editor_system_instruction,
+        )
+
         # SPECIALIST 1: THE PARSER
         self.parser_chat = self.client.chats.create(
             model=self.parser_model,
             config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a Structural Resume Parser. Your role is to:\n"
-                    "1. Accept raw resume text\n"
-                    "2. Extract and structure into JSON: skills, experience, education, projects, summary\n"
-                    "3. Identify missing sections and incomplete information\n"
-                    "4. Return minified, valid JSON only (no prose, no markdown)\n\n"
-                    "Output format:\n"
-                    "{\n"
-                    "  \"summary\": \"...\",\n"
-                    "  \"skills\": [...],\n"
-                    "  \"experience\": [...],\n"
-                    "  \"education\": [...],\n"
-                    "  \"projects\": [...],\n"
-                    "  \"missing_sections\": [...]\n"
-                    "}"
-                ),
+                cached_content=parser_cache,
                 temperature=0.0,
                 response_mime_type="application/json"
             )
@@ -86,28 +138,7 @@ class AnalysisEngine:
         self.critic_chat = self.client.chats.create(
             model=self.critic_model,
             config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are an elite Resume Critic and ATS Auditor. Your role is to:\n"
-                    "1. Accept parsed resume structure and job description (if provided)\n"
-                    "2. Score resume on 4 dimensions (0-100 each):\n"
-                    "   - impact: Quantifiable results and action verbs\n"
-                    "   - brevity: Word density, filler reduction\n"
-                    "   - style: Clarity, formatting, no clichés\n"
-                    "   - skills: Industry-relevant skill presence\n"
-                    "3. If job provided: Extract keywords, identify gaps, assess ATS match\n"
-                    "4. Flag critical issues and weak statements\n"
-                    "5. Return valid JSON with scores and detailed feedback\n\n"
-                    "Output format:\n"
-                    "{\n"
-                    "  \"scores\": {\"impact\": 0-100, \"brevity\": 0-100, \"style\": 0-100, \"skills\": 0-100},\n"
-                    "  \"job_keywords\": [...],\n"
-                    "  \"keyword_gaps\": [...],\n"
-                    "  \"ats_score\": 0-100,\n"
-                    "  \"critical_issues\": [...],\n"
-                    "  \"weak_statements\": [...],\n"
-                    "  \"strengths\": [...]\n"
-                    "}"
-                ),
+                cached_content=critic_cache,
                 temperature=0.0,
                 response_mime_type="application/json"
             )
@@ -117,23 +148,7 @@ class AnalysisEngine:
         self.editor_chat = self.client.chats.create(
             model=self.editor_model,
             config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a Master Executive Resume Editor. Your role is to:\n"
-                    "1. Accept parsed resume, critic's feedback, and weak statements\n"
-                    "2. Rewrite weak bullets to add impact without inventing false facts\n"
-                    "3. Inject quantifiable metrics where possible\n"
-                    "4. Enforce consistency and clarity\n"
-                    "5. Fix formatting and ATS issues flagged by critic\n"
-                    "6. Return both improved resume JSON and bullet-by-bullet improvements\n\n"
-                    "Output format:\n"
-                    "{\n"
-                    "  \"improved_resume\": {...parsed resume with rewrites...},\n"
-                    "  \"bullet_improvements\": [\n"
-                    "    {\"original\": \"...\", \"improved\": \"...\", \"reasoning\": \"...\"}\n"
-                    "  ],\n"
-                    "  \"changes_summary\": \"...\"\n"
-                    "}"
-                ),
+                cached_content=editor_cache,
                 temperature=0.4,
                 response_mime_type="application/json"
             )
